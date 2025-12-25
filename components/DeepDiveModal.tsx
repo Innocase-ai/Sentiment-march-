@@ -1,15 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MarketAsset, Recommendation } from '../types.ts';
+import { getAssetIntelligence } from '../geminiService.ts';
 
 interface DeepDiveModalProps {
     asset: MarketAsset;
     recommendation?: Recommendation;
     isAnalyzing?: boolean;
     onClose: () => void;
+    onUpdateRecommendation: (rec: Recommendation) => void;
 }
 
-const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, isAnalyzing, onClose }) => {
+const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, isAnalyzing: globalAnalyzing, onClose, onUpdateRecommendation }) => {
+    const [isLocalAnalyzing, setIsLocalAnalyzing] = useState(false);
     const isPositive = asset.change >= 0;
+
+    // --- TECHNICAL FALLBACK LOGIC ---
+    const getTechnicalVerdict = () => {
+        if (asset.rsi > 70) return { action: 'VENDRE (Technique)', color: 'text-rose-400', logic: "RSI en zone de surachat (>70). Prise de profits potentielle." };
+        if (asset.rsi < 30) return { action: 'ACHETER (Technique)', color: 'text-emerald-400', logic: "RSI en zone de survente (<30). Rebond technique probable." };
+        if (asset.macd.startsWith('+') && isPositive) return { action: 'ACHETER (Technique)', color: 'text-emerald-400', logic: "MACD positif aligné avec une tendance prix haussière." };
+        if (asset.macd.startsWith('-') && !isPositive) return { action: 'VENDRE (Technique)', color: 'text-rose-400', logic: "MACD négatif confirmant la baisse du prix." };
+        return { action: 'NEUTRE (Technique)', color: 'text-amber-400', logic: "Indicateurs techniques mitigés. Pas de signal directionnel clair." };
+    };
+
+    const techVerdict = getTechnicalVerdict();
+
+    // Determine what to show: AI Recommendation OR Technical Fallback
+    const displayAction = recommendation ? recommendation.action : techVerdict.action;
 
     const actionStyles = {
         BUY: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', label: 'ACHAT' },
@@ -17,7 +34,24 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
         HOLD: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', label: 'NEUTRE' }
     };
 
-    const currentAction = recommendation ? actionStyles[recommendation.action] : { text: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/30', label: 'NON ANALYSÉ' };
+    // If it's a "real" AI action (BUY/SELL/HOLD), use style map. If it's a text string (Technical), create a custom style.
+    const currentAction = actionStyles[displayAction as keyof typeof actionStyles] || {
+        text: techVerdict.color,
+        bg: techVerdict.color.replace('text-', 'bg-').replace('400', '500/10'),
+        border: techVerdict.color.replace('text-', 'border-').replace('400', '500/30'),
+        label: displayAction
+    };
+
+    const handleRunAnalysis = async () => {
+        setIsLocalAnalyzing(true);
+        const newRec = await getAssetIntelligence(asset);
+        if (newRec) {
+            onUpdateRecommendation(newRec);
+        }
+        setIsLocalAnalyzing(false);
+    };
+
+    const isBusy = globalAnalyzing || isLocalAnalyzing;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
@@ -53,14 +87,17 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
                 <div className="p-8 pt-4 overflow-y-auto no-scrollbar space-y-8">
 
                     {/* AI Signal Panel */}
-                    <div className={`p-6 rounded-3xl border ${currentAction.border} ${currentAction.bg} relative overflow-hidden group`}>
+                    <div className={`p-6 rounded-3xl border ${currentAction.border} ${currentAction.bg} relative overflow-hidden group transition-all duration-500`}>
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                             <span className="text-6xl font-black tracking-tighter">AI</span>
                         </div>
 
                         <div className="relative z-10">
                             <div className="flex items-center justify-between mb-4">
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Verdict Stratégique IA</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Verdict Stratégique</span>
+                                    {!recommendation && <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">( Mode Technique )</span>}
+                                </div>
                                 {recommendation && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-black text-slate-400">CONFIANCE</span>
@@ -69,21 +106,47 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
                                 )}
                             </div>
 
-                            <div className="flex items-baseline gap-4 mb-4">
-                                <span className={`text-4xl font-black ${currentAction.text}`}>{currentAction.label}</span>
-                                <span className="text-slate-500 text-sm font-medium">Suggéré par Gemini 3</span>
+                            <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 mb-4">
+                                <div className="flex items-baseline gap-4">
+                                    <span className={`text-3xl sm:text-4xl font-black ${currentAction.text}`}>{currentAction.label}</span>
+                                    <span className="text-slate-500 text-sm font-medium whitespace-nowrap">{recommendation ? 'Suggéré par Gemini 3' : 'Calculé par OmniTrade'}</span>
+                                </div>
+
+                                <button
+                                    onClick={handleRunAnalysis}
+                                    disabled={isBusy}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all ${isBusy ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20 hover:shadow-blue-600/40 transform hover:-translate-y-0.5'}`}
+                                >
+                                    {isBusy ? (
+                                        <>
+                                            <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                                            Analyse...
+                                        </>
+                                    ) : (
+                                        <>
+                                            ✨ {recommendation ? 'Actualiser' : 'Expertise IA'}
+                                        </>
+                                    )}
+                                </button>
                             </div>
 
-                            <div className="bg-black/20 backdrop-blur-sm p-5 rounded-2xl border border-white/5">
-                                <p className="text-slate-300 leading-relaxed italic text-lg text-center">
-                                    {isAnalyzing ? (
-                                        <span className="flex items-center justify-center gap-3 py-2">
-                                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
-                                            Mise à jour de l'analyse IA en cours...
-                                        </span>
-                                    ) : (
-                                        `"${recommendation?.justification || "Analyse approfondie en cours. L'IA n'a pas encore émis de recommandation spécifique pour cet actif."}"`
-                                    )}
+                            <div className="bg-black/20 backdrop-blur-sm p-5 rounded-2xl border border-white/5 relative overflow-hidden">
+                                {isBusy && (
+                                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-[2px] z-20 flex items-center justify-center p-6 text-center">
+                                        <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
+                                            <div className="w-8 h-8 relative">
+                                                <span className="absolute inset-0 rounded-full border-4 border-blue-500/20"></span>
+                                                <span className="absolute inset-0 rounded-full border-4 border-t-blue-500 animate-spin"></span>
+                                            </div>
+                                            <div>
+                                                <p className="text-blue-400 font-black text-xs uppercase tracking-widest leading-relaxed">Interrogation de Gemini Pro...</p>
+                                                <p className="text-slate-500 text-[10px] uppercase tracking-wide">Analyse des rapports & indicateurs</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <p className="text-slate-300 leading-relaxed italic text-lg text-center relative z-10">
+                                    "{recommendation?.justification || techVerdict.logic}"
                                 </p>
                             </div>
                         </div>
@@ -131,14 +194,17 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
                                         </span>
                                     ))
                                 ) : (
-                                    <div className="w-full text-center py-6 bg-slate-800/20 rounded-2xl border border-dashed border-slate-700">
+                                    <div className="w-full text-center py-6 bg-slate-800/20 rounded-2xl border border-dashed border-slate-700 flex flex-col items-center justify-center gap-2">
                                         <span className="text-[10px] font-black text-slate-600 uppercase">Aucun signal spécifique</span>
+                                        <span className="text-[8px] text-slate-700">Lancer une analyse IA pour détecter des signaux</span>
                                     </div>
                                 )}
                             </div>
                             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
                                 <p className="text-[10px] text-slate-500 leading-relaxed uppercase font-bold text-center italic">
-                                    L'intelligence collective FinTwit montre une convergence de {recommendation?.confidence || 50}% sur cet actif.
+                                    {recommendation
+                                        ? `L'intelligence collective FinTwit montre une convergence de ${recommendation.confidence}% sur cet actif.`
+                                        : "Données de sentiment social en attente d'analyse IA."}
                                 </p>
                             </div>
                         </div>

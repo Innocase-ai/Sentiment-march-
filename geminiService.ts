@@ -17,6 +17,11 @@ export interface UnifiedIntelligence {
   quotaReached?: boolean;
 }
 
+// Response type for single asset intelligence
+interface SingleAssetIntelligence {
+  recommendation: Recommendation;
+}
+
 /**
  * Calls the Netlify Function to get intelligence.
  * The API Key is now securely stored on the server side.
@@ -57,4 +62,25 @@ export async function generateNewsImage(title: string): Promise<string | undefin
   // Currently disabled to prevent API Key leakage.
   console.warn("Image generation disabled pending backend migration.");
   return undefined;
+}
+
+/**
+ * Requests a specific deep dive analysis for a single asset.
+ */
+export async function getAssetIntelligence(asset: MarketAsset): Promise<Recommendation | null> {
+  try {
+    const response = await fetch('/.netlify/functions/omni-intelligence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetAsset: asset }),
+    });
+
+    if (!response.ok) throw new Error("Backend Error");
+
+    const data: SingleAssetIntelligence = await response.json();
+    return data.recommendation;
+  } catch (error) {
+    console.error("Asset Intelligence Error:", error);
+    return null;
+  }
 }

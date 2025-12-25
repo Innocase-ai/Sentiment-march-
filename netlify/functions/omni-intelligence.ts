@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 const getGenAI = () => {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -31,19 +31,77 @@ export default async (req: Request) => {
     }
 
     try {
-        const { marketData } = await req.json();
+        const { marketData, targetAsset } = await req.json();
 
-        if (!marketData) {
-            return new Response("Missing marketData", { status: 400 });
+        if (!marketData && !targetAsset) {
+            return new Response("Missing marketData or targetAsset", { status: 400 });
         }
 
+        const client = getGenAI();
+
+        // MODE 1: TARGETED DEEP DIVE (Single Asset)
+        if (targetAsset) {
+            console.log(`Analyzing target: ${targetAsset.name}`);
+            const response = await client.models.generateContent({
+                model: "gemini-2.0-flash-exp",
+                contents: `
+                ROLE: Tu es un Comité d'Investissement Algorithmique de pointe. Tu dois simuler une discussion entre 4 experts avant de rendre un verdict unique sur l'actif : ${targetAsset.name} (${targetAsset.symbol}).
+
+                CONTEXTE DU MARCHÉ (DONNÉES TEMPS RÉEL):
+                - PRIX: ${targetAsset.price}
+                - VARIATION 24H: ${targetAsset.change}%
+                - RSI (14): ${targetAsset.rsi}
+                - MACD: ${targetAsset.macd}
+
+                --- ÉTAPE 1 : LE SCOUT (DATA HUNTER) ---
+                Objectif : Collecte de faits bruts. Pas d'opinion.
+                Action : Recherche sur le web (Google Search) les 3 dernières news critiques, les rapports de résultats (Earnings), et le consensus des analystes (Zacks, Seeking Alpha).
+                
+                --- ÉTAPE 2 : L'ANALYSTE TECHNIQUE (CHARTIST) ---
+                Objectif : Analyse froide des graphiques.
+                Action : Interprète le RSI (Surachat > 70 / Survente < 30) et le MACD (Croisement haussier/baissier). Valide la tendance du prix.
+
+                --- ÉTAPE 3 : LE RISK MANAGER (CONTRARIAN) ---
+                Objectif : Tuer la thèse.
+                Action : Trouve pourquoi "l'évidence" pourrait être fausse. Y a-t-il une divergence entre le prix et le RSI ? Une news macro (Fed, Géopolitique) qui invalide l'analyse technique ?
+
+                --- ÉTAPE 4 : LE GÉRANT DE PORTEFEUILLE (DECISION MAKER) ---
+                Objectif : Synthèse et Verdict.
+                Action : Pèse les arguments des 3 experts précédents.
+                - Si Technique Bullish MAIS Macro Bearish => HOLD/NEUTRE.
+                - Si Technique Bullish ET Consensus Bullish => BUY/ACHAT (Confiance élevée).
+                - Si Technique Bearish ET News Négatives => SELL/VENTE.
+
+                OUTPUT FINAL (JSON STRICT):
+                {
+                    "recommendation": {
+                        "asset": "${targetAsset.symbol}",
+                        "action": "BUY/SELL/HOLD",
+                        "confidence": 0-100, // Une confiance > 80% nécessite un alignement PARFAIT Technique + Macro.
+                        "justification": "Synthèse narrative du processus de décision. Commence par 'Le comité a décidé...' Cite explicitement les facteurs clés (ex: 'Malgré un RSI en surachat, le consensus analystes reste fort...').",
+                        "signals": ["Nom du Signal 1", "Nom du Signal 2"] // Ex: "RSI DIVERGENCE", "EARNINGS BEAT", "MACD CROSS"
+                    }
+                }
+                `,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    responseMimeType: "application/json"
+                }
+            });
+
+            const rawText = response.text || '{}';
+            const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const result = JSON.parse(cleanText);
+            return new Response(JSON.stringify(result), { headers: { "Content-Type": "application/json" } });
+        }
+
+        // MODE 2: GLOBAL SCAN (Legacy)
         const dataSummary = marketData.map((m: any) =>
             `${m.name} (${m.symbol}): Prix ${m.price}, Var ${m.change}%, RSI ${m.rsi}`
         ).join('\n');
 
-        const client = getGenAI();
         const response = await client.models.generateContent({
-            model: "gemini-2.0-flash-exp", // Using flash-exp or consistent model
+            model: "gemini-2.0-flash-exp",
             contents: `
       ROLE: Tu es le Lead Quantitative Strategist d'un Hedge Fund Tier-1. Ton expertise réside dans l'analyse cross-asset et la détection d'alpha par convergence/divergence entre "HARD DATA" (Consensus/Quant) et "SOFT DATA" (Sentiment Social).
       
@@ -77,54 +135,7 @@ export default async (req: Request) => {
       - "news": Liste de 3 à 5 articles pertinents trouvés via Google Search.`,
             config: {
                 tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        summary: { type: Type.STRING },
-                        signals: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    type: { type: Type.STRING, enum: ['CORRELATION', 'MACRO', 'VOLATILITY'] },
-                                    title: { type: Type.STRING },
-                                    description: { type: Type.STRING },
-                                    impact: { type: Type.STRING, enum: ['high', 'medium', 'low'] }
-                                },
-                                required: ['type', 'title', 'description', 'impact']
-                            }
-                        },
-                        recommendations: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    asset: { type: Type.STRING },
-                                    action: { type: Type.STRING, enum: ['BUY', 'SELL', 'HOLD'] },
-                                    confidence: { type: Type.NUMBER },
-                                    justification: { type: Type.STRING },
-                                    signals: { type: Type.ARRAY, items: { type: Type.STRING } }
-                                },
-                                required: ['asset', 'action', 'confidence', 'justification', 'signals']
-                            }
-                        },
-                        news: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    title: { type: Type.STRING },
-                                    uri: { type: Type.STRING },
-                                    source: { type: Type.STRING },
-                                    sentiment: { type: Type.STRING, enum: ['positive', 'negative', 'neutral'] }
-                                },
-                                required: ['title', 'uri', 'source', 'sentiment']
-                            }
-                        }
-                    },
-                    required: ['summary', 'signals', 'recommendations', 'news']
-                }
+                responseMimeType: "application/json"
             }
         });
 

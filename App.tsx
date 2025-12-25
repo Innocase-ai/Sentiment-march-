@@ -134,6 +134,13 @@ const App: React.FC = () => {
           recommendation={getAssetRecommendation(selectedAsset)}
           isAnalyzing={isAnalyzing}
           onClose={() => setSelectedAsset(null)}
+          onUpdateRecommendation={(newRec) => {
+            setRecommendations(prev => {
+              // Remove old if exists
+              const filtered = prev.filter(r => r.asset !== newRec.asset);
+              return [...filtered, newRec];
+            });
+          }}
         />
       )}
       {isAnalyzing && <AIAnalysisVisual />}
