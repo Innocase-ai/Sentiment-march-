@@ -1,18 +1,30 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { MarketAsset, Recommendation, MarketSignal } from "./types.ts";
-import * as Sentry from "@sentry/react";
 
-// Fix: Use import.meta.env for Vite and provide fallback
-const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.API_KEY) as string;
-const genAI = new GoogleGenAI(apiKey);
+const getGenAI = () => {
+  const apiKey = localStorage.getItem('GEMINI_API_KEY') || process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('API_KEY_MISSING');
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 const FINTWIT_HANDLES = [
-  "@CramerTracker", "@litcapital", "@JonahLupton",
-  "@alifarhat79", "@Baradez", "@Schuldensuehner", "@KobeissiLetter",
+  // FR
   "@NCheron_bourse", "@fuckthedip", "@investirpoursoi", "@tommydouziech",
-  "@Loris_Dalleau", "@MHoubben", "@Investingcom", "@BarnabeBearBull",
-  "@Quality_StocksA", "@BoursicoteSmall"
+  "@Loris_Dalleau", "@MHoubben", "@Baradez", "@BoursicoteSmall", "@DuconGoretti",
+  // EN
+  "@CramerTracker", "@litcapital", "@JonahLupton", "@alifarhat79",
+  "@Schuldensuehner", "@KobeissiLetter", "@Investingcom", "@bespokeinvest",
+  "@saxena_puru", "@LizAnnSonders", "@michaelbatnick",
+  // CRYPTO
+  "@rektcapital", "@cz_binance", "@CryptoJack"
+];
+
+const TRUSTED_SOURCES = [
+  "seekingalpha.com", "zacks.com", "morningstar.com",
+  "zonebourse.com", "boursorama.com", "investing.com"
 ];
 
 export interface MarketNews {
@@ -33,7 +45,8 @@ export interface UnifiedIntelligence {
 }
 
 /**
- * Consolidates all intelligence gathering into a single call.
+ * Consolidates all intelligence gathering into a single call to save Google Search grounding quota.
+ * 1 call every 15 mins = 96 calls/day (Under the 100/day limit).
  */
 export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<UnifiedIntelligence> {
   const dataSummary = marketData.map(m =>
@@ -41,10 +54,39 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
   ).join('\n');
 
   try {
-    // Fix: Correct model selection and tool definition
-    const model = genAI.getGenerativeModel({
-      model: "models/gemini-3-flash-preview", // Version demandée par l'utilisateur
-      generationConfig: {
+    const response = await getGenAI().models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `
+      ROLE: Tu es le Lead Quantitative Strategist d'un Hedge Fund Tier-1. Ton expertise réside dans l'analyse cross-asset et la détection d'alpha par convergence/divergence entre "HARD DATA" (Consensus/Quant) et "SOFT DATA" (Sentiment Social).
+      
+      OBJECTIF: Scanner le flux FinTwit (Sentiment) ET les sources de données fiables (Consensus/Quant) pour produire une note d'intelligence de marché exploitable.
+
+      DONNÉES TECHNIQUES LOCALES (HARD DATA 1):
+      ${dataSummary}
+
+      SOURCES À SCANNER VIA GOOGLE SEARCH (Utilise ces sites pour le Consensus/Quant):
+      ${TRUSTED_SOURCES.join(', ')}. Cherche spécifiquement "Quant Rating", "Zacks Rank", "Fair Value", "Consensus Analystes" pour les actifs majeurs.
+
+      SOURCES SENTIMENT SOCIAL (SOFT DATA):
+      Recherche les dernières analyses pertinentes et récentes (moins de 24h) des comptes suivants pour capturer le "Narratif de Marché": ${FINTWIT_HANDLES.join(', ')}.
+
+      LOGIQUE DE DÉCISION (RÈGLES D'ENGAGEMENT):
+      - **BUY SIGNAL** = Sentiment X Haussier (Soft) ET (Quant Rating "Buy/Strong Buy" OU Consensus Analystes Positif) (Hard).
+      - **SELL SIGNAL** = Sentiment X Baissier (Soft) OU (Quant Rating "Strong Sell" OU Zacks Rank 4/5).
+      - **CAUTION/HOLD** = Divergence entre Sentiment (ex: Bullish) et Hard Data (ex: Bearish/Neutre). "Ne pas suivre le troupeau si les chiffres ne suivent pas".
+
+      PROCESSUS DE PENSÉE (Chain of Thought - Interne):
+      1.  **Macro & Sentiment Scan**: Quelle est la narration dominante sur FinTwit? (Risk-on/off).
+      2.  **Hard Data Check**: Que disent Seeking Alpha, Zacks ou Zonebourse sur les actifs clés? Le consensus est-il aligné avec FinTwit?
+      3.  **Alpha Hunting**: Applique les RÈGLES D'ENGAGEMENT ci-dessus. Identifie les convergences (High Confidence) et les divergences (Risk).
+
+      OUTPUT ATTENDU (JSON STRICT):
+      Produis un JSON valide respectant strictement le schéma fourni.
+      - "summary": Synthèse percutante (style Bloomberg). Mentionne explicitement si "Hard Data" valide "Soft Data". Max 40 mots.
+      - "signals": 3 Signaux Critiques. Types: 'MACRO' (Tendance), 'CORRELATION' (Convergence Hard/Soft), 'VOLATILITY' (Divergence/Choc).
+      - "recommendations": Recommandations basées sur la LOGIQUE DE DÉCISION. Justification DOIT citer une source Hard (ex: "Quant Rating", "Zacks") ET le sentiment.`,
+      config: {
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -80,46 +122,27 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
           },
           required: ['summary', 'signals', 'recommendations']
         }
-      },
-      tools: [{ googleSearch: {} }] as any,
+      }
     });
 
-    const prompt = `Tu es un analyste senior multi-expertises. Utilise Google Search pour scanner les dernières publications de ces experts FinTwit : ${FINTWIT_HANDLES.join(', ')}.
-      
-    Analyse ces données :
-    ${dataSummary}
+    // Sanitization: Remove Markdown code blocks if present to avoid JSON.parse errors
+    const rawText = response.text || '{}';
+    const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    Tâches :
-    1. Synthèse globale (2 phrases) du sentiment Macro/Technique.
-    2. 3 Signaux critiques (Type: MACRO, CORRELATION, VOLATILITY) avec description et impact.
-    3. Recommandations de trading (BUY, SELL, HOLD) avec justification et tags de signaux courts (ex: "RSI_BULL", "CRAMER_SIGNAL").
-    
-    Retourne tout au format JSON strict.`;
+    const intelligence = JSON.parse(cleanText) as UnifiedIntelligence;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    const intelligence = JSON.parse(cleanText || '{}') as UnifiedIntelligence;
-
-    // Extract news links from grounding metadata
+    // Extract news links from grounding metadata to avoid an extra API call
     const news: MarketNews[] = [];
-    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-    const chunks = groundingMetadata?.groundingChunks || [];
-
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     chunks.forEach((chunk: any) => {
       if (chunk.web) {
-        try {
-          news.push({
-            title: chunk.web.title || "Flash Marché",
-            uri: chunk.web.uri,
-            source: new URL(chunk.web.uri).hostname.replace('www.', ''),
-            time: "LIVE",
-            sentiment: 'neutral'
-          });
-        } catch (e) {
-          console.warn("Invalid news URL:", chunk.web.uri);
-        }
+        news.push({
+          title: chunk.web.title || "Flash Marché",
+          uri: chunk.web.uri,
+          source: new URL(chunk.web.uri).hostname.replace('www.', ''),
+          time: "LIVE",
+          sentiment: 'neutral'
+        });
       }
     });
 
@@ -127,14 +150,21 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
 
   } catch (error: any) {
     console.error("OmniIntelligence Error:", error);
-    Sentry.captureException(error);
 
+    // Check for 429 specifically
     const isQuotaError = error?.message?.includes('429') || error?.status === 429 || JSON.stringify(error).includes('429');
+
+    // Check for invalid API Key (400 with specific message or 403)
+    const isKeyError = error?.message?.includes('API key not valid') || error?.status === 400 && error?.message?.includes('key');
+
+    if (isKeyError) {
+      throw new Error('API_KEY_MISSING');
+    }
 
     return {
       recommendations: [],
       summary: isQuotaError
-        ? "Quota Google Search atteint. Passage en mode analyse technique locale."
+        ? "Quota Google Search atteint pour aujourd'hui. Passage en mode analyse technique locale."
         : "Erreur de connexion au moteur d'intelligence.",
       news: [],
       signals: [],
@@ -144,7 +174,15 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
 }
 
 export async function generateNewsImage(title: string): Promise<string | undefined> {
-  // Optimization: The previous model (flash-preview) does not support direct image generation.
-  // Returning undefined immediately to save API quota and latency until a proper image model is integrated.
-  return undefined;
+  try {
+    const response = await getGenAI().models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: `Professional financial news visual: ${title}` }] },
+    });
+    const part = response.candidates[0].content.parts.find(p => p.inlineData);
+    return part ? `data:image/png;base64,${part.inlineData.data}` : undefined;
+  } catch (error: any) {
+    if (error?.message?.includes('API key not valid')) throw new Error('API_KEY_MISSING');
+    return undefined;
+  }
 }
