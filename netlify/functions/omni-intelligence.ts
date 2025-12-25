@@ -84,7 +84,7 @@ export default async (req: Request) => {
             // Use XML tagging to delimit data from instructions. 
             // Explicitly instruct the model to ignore override commands within the data block.
             const response = await client.models.generateContent({
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-3-flash-preview",
                 contents: `
                 ROLE: Tu es un Comité d'Investissement Algorithmique de pointe.
 
@@ -151,7 +151,7 @@ export default async (req: Request) => {
         ).join('\n');
 
         const response = await client.models.generateContent({
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-3-flash-preview",
             contents: `
               ROLE: Lead Quantitative Strategist.
               OBJECTIF: Intelligence de marché.
