@@ -7,7 +7,6 @@ import RecommendationCard from './components/RecommendationCard.tsx';
 import NewsCard from './components/NewsCard.tsx';
 import { getOmniIntelligence, generateNewsImage, MarketNews } from './geminiService.ts';
 import AIAnalysisVisual from './components/AIAnalysisVisual.tsx';
-import APIKeyModal from './components/APIKeyModal.tsx';
 import { AboutModal } from './components/AboutModal';
 
 const App: React.FC = () => {
@@ -19,7 +18,6 @@ const App: React.FC = () => {
   const [globalSummary, setGlobalSummary] = useState<string>("Prêt pour le scan FinTwit...");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isQuotaReached, setIsQuotaReached] = useState(false);
-  const [showKeyModal, setShowKeyModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -84,19 +82,12 @@ const App: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Analysis error:", error);
-      if (error.message === 'API_KEY_MISSING') {
-        setShowKeyModal(true);
-      }
     } finally {
       setIsAnalyzing(false);
     }
   }, [markets]);
 
-  const handleSaveKey = (key: string) => {
-    localStorage.setItem('GEMINI_API_KEY', key);
-    setShowKeyModal(false);
-    runAnalysis();
-  };
+
 
   useEffect(() => {
     // IMPLICIT TRIGGER: 'runAnalysis' depends on 'markets'.
@@ -132,7 +123,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen font-sans bg-[#0f172a] text-slate-100 selection:bg-blue-500/30">
-      {showKeyModal && <APIKeyModal onSave={handleSaveKey} />}
       {showAboutModal && <AboutModal onClose={() => setShowAboutModal(false)} />}
       {isAnalyzing && <AIAnalysisVisual />}
       <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
