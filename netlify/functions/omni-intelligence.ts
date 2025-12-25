@@ -39,6 +39,19 @@ export default async (req: Request) => {
 
         const client = getGenAI();
 
+        const extractJSON = (text: string) => {
+            try {
+                const firstBrace = text.indexOf('{');
+                const lastBrace = text.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    return JSON.parse(text.substring(firstBrace, lastBrace + 1));
+                }
+                return JSON.parse(text);
+            } catch (e) {
+                return JSON.parse(text); // Let it throw original error if extraction fails
+            }
+        };
+
         // MODE 1: TARGETED DEEP DIVE (Single Asset)
         if (targetAsset) {
             console.log(`Analyzing target: ${targetAsset.name}`);
@@ -90,8 +103,7 @@ export default async (req: Request) => {
             });
 
             const rawText = response.text || '{}';
-            const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            const result = JSON.parse(cleanText);
+            const result = extractJSON(rawText);
             return new Response(JSON.stringify(result), { headers: { "Content-Type": "application/json" } });
         }
 
@@ -101,7 +113,7 @@ export default async (req: Request) => {
         ).join('\n');
 
         const response = await client.models.generateContent({
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-3.0-flash",
             contents: `
       ROLE: Tu es le Lead Quantitative Strategist d'un Hedge Fund Tier-1. Ton expertise réside dans l'analyse cross-asset et la détection d'alpha par convergence/divergence entre "HARD DATA" (Consensus/Quant) et "SOFT DATA" (Sentiment Social).
       
@@ -155,8 +167,7 @@ export default async (req: Request) => {
         });
 
         const rawText = response.text || '{}';
-        const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const intelligence = JSON.parse(cleanText);
+        const intelligence = extractJSON(rawText);
 
         // Merge logic
         const combinedNews = [...(intelligence.news || []), ...groundingNews];
