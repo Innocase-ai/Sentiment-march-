@@ -163,11 +163,11 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
 
 
                     {/* RIGHT PANEL: INTELLIGENCE & METRICS */}
-                    <div className="w-full md:w-2/3 p-8 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                    <div className="w-full md:w-2/3 p-8 md:pt-14 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
 
                         {/* 1. THE VERDICT CARD */}
                         <div className={`relative overflow-hidden rounded-3xl p-1 ${theme.bg} transition-all duration-500`}>
-                            <div className={`absolute inset-0 opacity-20 bg-gradient-to-r from-transparent via-${displayData.color}-500 to-transparent blur-xl`} />
+                            <div className={`absolute inset-0 opacity-20 bg-gradient-to-r from-transparent ${displayData.color === 'emerald' ? 'via-emerald-500' : displayData.color === 'rose' ? 'via-rose-500' : 'via-amber-500'} to-transparent blur-xl`} />
 
                             <div className="relative bg-[#0F1115] rounded-[1.3rem] p-6 border border-white/5 h-full flex flex-col justify-between group">
                                 <div className="flex justify-between items-start mb-6">
