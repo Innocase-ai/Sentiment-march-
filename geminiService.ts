@@ -182,7 +182,12 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
     // Check for 429 specifically
     const isQuotaError = error?.message?.includes('429') || error?.status === 429 || JSON.stringify(error).includes('429');
 
-    // Check for invalid API Key (400 with specific message or 403)
+    // Explicitly re-throw if it's our own missing key error
+    if (error.message === 'API_KEY_MISSING') {
+      throw error;
+    }
+
+    // Check for invalid API Key (400 with specific message or 403) from Google
     const isKeyError = error?.message?.includes('API key not valid') || error?.status === 400 && error?.message?.includes('key');
 
     if (isKeyError) {
@@ -210,6 +215,7 @@ export async function generateNewsImage(title: string): Promise<string | undefin
     const part = response.candidates[0].content.parts.find(p => p.inlineData);
     return part ? `data:image/png;base64,${part.inlineData.data}` : undefined;
   } catch (error: any) {
+    if (error.message === 'API_KEY_MISSING') throw error;
     if (error?.message?.includes('API key not valid')) throw new Error('API_KEY_MISSING');
     return undefined;
   }
