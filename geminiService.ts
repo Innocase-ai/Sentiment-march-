@@ -27,6 +27,9 @@ interface SingleAssetIntelligence {
  * The API Key is now securely stored on the server side.
  */
 export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<UnifiedIntelligence> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
   try {
     const response = await fetch('/.netlify/functions/omni-intelligence', {
       method: 'POST',
@@ -34,7 +37,9 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ marketData }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -46,6 +51,15 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
 
   } catch (error: any) {
     console.error("OmniIntelligence Error:", error);
+    if (error.name === 'AbortError') {
+      return {
+        recommendations: [],
+        summary: "Le service met trop de temps à répondre. Veuillez réessayer.",
+        news: [],
+        signals: [],
+        quotaReached: false
+      };
+    }
 
     return {
       recommendations: [],
@@ -68,12 +82,17 @@ export async function generateNewsImage(title: string): Promise<string | undefin
  * Requests a specific deep dive analysis for a single asset.
  */
 export async function getAssetIntelligence(asset: MarketAsset): Promise<Recommendation | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
   try {
     const response = await fetch('/.netlify/functions/omni-intelligence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetAsset: asset }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) throw new Error("Backend Error");
 

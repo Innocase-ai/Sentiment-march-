@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MarketAsset, Recommendation } from '../types.ts';
 import { getAssetIntelligence } from '../geminiService.ts';
 
@@ -13,11 +13,17 @@ interface DeepDiveModalProps {
 const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, isAnalyzing: globalAnalyzing, onClose, onUpdateRecommendation }) => {
     const [isLocalAnalyzing, setIsLocalAnalyzing] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const isPositive = asset.change >= 0;
+
+    const isMounted = useRef(true);
 
     useEffect(() => {
         setIsVisible(true);
-        return () => setIsVisible(false);
+        return () => {
+            setIsVisible(false);
+            isMounted.current = false;
+        };
     }, []);
 
     // --- TECHNICAL FALLBACK LOGIC ---
@@ -48,11 +54,20 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
 
     const handleRunAnalysis = async () => {
         setIsLocalAnalyzing(true);
-        const newRec = await getAssetIntelligence(asset);
-        if (newRec) {
-            onUpdateRecommendation(newRec);
+        setError(null);
+        try {
+            const newRec = await getAssetIntelligence(asset);
+            if (!isMounted.current) return; // Prevent update if unmounted
+
+            if (newRec) {
+                onUpdateRecommendation(newRec);
+            } else {
+                setError("Analyse impossible. Veuillez réessayer.");
+            }
+        } catch (err) {
+            if (isMounted.current) setError("Une erreur est survenue.");
         }
-        setIsLocalAnalyzing(false);
+        if (isMounted.current) setIsLocalAnalyzing(false);
     };
 
     const isBusy = globalAnalyzing || isLocalAnalyzing;
@@ -110,23 +125,31 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
                             </div>
 
                             {/* Action Button */}
-                            <button
-                                onClick={handleRunAnalysis}
-                                disabled={isBusy}
-                                className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all duration-300 group ${isBusy ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-1'}`}
-                            >
-                                {isBusy ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        <span>Analyse en cours...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="text-lg group-hover:rotate-180 transition-transform duration-500">✨</span>
-                                        <span>{recommendation ? 'Actualiser l\'IA' : 'Lancer Omni-Intelligence'}</span>
-                                    </>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={handleRunAnalysis}
+                                    disabled={isBusy}
+                                    className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all duration-300 group ${isBusy ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-1'}`}
+                                >
+                                    {isBusy ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Analyse en cours...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-lg group-hover:rotate-180 transition-transform duration-500">✨</span>
+                                            <span>{recommendation ? 'Actualiser l\'IA' : 'Lancer Omni-Intelligence'}</span>
+                                        </>
+                                    )}
+                                </button>
+                                {error && (
+                                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                        <p className="text-rose-400 text-xs font-bold leading-tight">{error}</p>
+                                    </div>
                                 )}
-                            </button>
+                            </div>
                         </div>
 
                         {/* Footer Info */}
