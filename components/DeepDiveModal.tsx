@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MarketAsset, Recommendation } from '../types.ts';
 import { getAssetIntelligence } from '../geminiService.ts';
 
@@ -12,34 +12,38 @@ interface DeepDiveModalProps {
 
 const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, isAnalyzing: globalAnalyzing, onClose, onUpdateRecommendation }) => {
     const [isLocalAnalyzing, setIsLocalAnalyzing] = useState(false);
+    const [isVisible, setIsVisible] = useState(false);
     const isPositive = asset.change >= 0;
+
+    useEffect(() => {
+        setIsVisible(true);
+        return () => setIsVisible(false);
+    }, []);
 
     // --- TECHNICAL FALLBACK LOGIC ---
     const getTechnicalVerdict = () => {
-        if (asset.rsi > 70) return { action: 'VENDRE (Technique)', color: 'text-rose-400', logic: "RSI en zone de surachat (>70). Prise de profits potentielle." };
-        if (asset.rsi < 30) return { action: 'ACHETER (Technique)', color: 'text-emerald-400', logic: "RSI en zone de survente (<30). Rebond technique probable." };
-        if (asset.macd.startsWith('+') && isPositive) return { action: 'ACHETER (Technique)', color: 'text-emerald-400', logic: "MACD positif aligné avec une tendance prix haussière." };
-        if (asset.macd.startsWith('-') && !isPositive) return { action: 'VENDRE (Technique)', color: 'text-rose-400', logic: "MACD négatif confirmant la baisse du prix." };
-        return { action: 'NEUTRE (Technique)', color: 'text-amber-400', logic: "Indicateurs techniques mitigés. Pas de signal directionnel clair." };
+        if (asset.rsi > 70) return { action: 'VENDRE', logic: "RSI en zone de surachat (>70). Prise de profits potentielle.", score: 85, color: 'rose' };
+        if (asset.rsi < 30) return { action: 'ACHETER', logic: "RSI en zone de survente (<30). Rebond technique probable.", score: 85, color: 'emerald' };
+        if (asset.macd.startsWith('+') && isPositive) return { action: 'ACHETER', logic: "MACD positif aligné avec une tendance prix haussière.", score: 75, color: 'emerald' };
+        if (asset.macd.startsWith('-') && !isPositive) return { action: 'VENDRE', logic: "MACD négatif confirmant la baisse du prix.", score: 75, color: 'rose' };
+        return { action: 'NEUTRE', logic: "Indicateurs techniques mitigés. Pas de signal directionnel clair.", score: 50, color: 'amber' };
     };
 
     const techVerdict = getTechnicalVerdict();
 
     // Determine what to show: AI Recommendation OR Technical Fallback
-    const displayAction = recommendation ? recommendation.action : techVerdict.action;
-
-    const actionStyles = {
-        BUY: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', label: 'ACHAT' },
-        SELL: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/30', label: 'VENTE' },
-        HOLD: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', label: 'NEUTRE' }
-    };
-
-    // If it's a "real" AI action (BUY/SELL/HOLD), use style map. If it's a text string (Technical), create a custom style.
-    const currentAction = actionStyles[displayAction as keyof typeof actionStyles] || {
-        text: techVerdict.color,
-        bg: techVerdict.color.replace('text-', 'bg-').replace('400', '500/10'),
-        border: techVerdict.color.replace('text-', 'border-').replace('400', '500/30'),
-        label: displayAction
+    const displayData = recommendation ? {
+        action: recommendation.action,
+        logic: recommendation.justification,
+        score: recommendation.confidence,
+        color: recommendation.action === 'BUY' ? 'emerald' : recommendation.action === 'SELL' ? 'rose' : 'amber',
+        isAi: true
+    } : {
+        action: techVerdict.action,
+        logic: techVerdict.logic,
+        score: techVerdict.score,
+        color: techVerdict.color,
+        isAi: false
     };
 
     const handleRunAnalysis = async () => {
@@ -53,175 +57,189 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, is
 
     const isBusy = globalAnalyzing || isLocalAnalyzing;
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-[#0f172a] border border-slate-700 rounded-[2.5rem] max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col animate-in zoom-in duration-300">
+    // Helper for color classes
+    const getColorClasses = (color: string) => {
+        const map: Record<string, any> = {
+            emerald: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', glow: 'shadow-emerald-500/20' },
+            rose: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20', glow: 'shadow-rose-500/20' },
+            amber: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', glow: 'shadow-amber-500/20' },
+            blue: { text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', glow: 'shadow-blue-500/20' },
+        };
+        return map[color] || map.blue;
+    };
 
-                {/* Header Section */}
-                <div className="p-8 pb-4 flex justify-between items-start">
-                    <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-2xl bg-slate-800/80 flex items-center justify-center text-4xl border border-white/5 shadow-inner">
-                            {asset.icon}
-                        </div>
-                        <div>
-                            <h2 className="text-3xl font-black text-white tracking-tight">{asset.name}</h2>
-                            <div className="flex items-center gap-3 mt-1">
-                                <span className="text-sm text-slate-500 font-mono font-bold tracking-widest uppercase">{asset.symbol}</span>
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                    {isPositive ? '↗' : '↘'} {Math.abs(asset.change).toFixed(2)}%
-                                </span>
+    const theme = getColorClasses(displayData.color);
+
+    return (
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-500 ${isVisible ? 'bg-black/80 backdrop-blur-md opacity-100' : 'bg-black/0 backdrop-blur-none opacity-0'}`}>
+            <div
+                className={`w-full max-w-4xl bg-[#0a0a0a] rounded-[2rem] border border-white/10 shadow-2xl relative overflow-hidden transition-all duration-700 transform ${isVisible ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-10 opacity-0'}`}
+                style={{
+                    boxShadow: `0 0 100px -20px ${displayData.color === 'emerald' ? 'rgba(16, 185, 129, 0.1)' : displayData.color === 'rose' ? 'rgba(244, 63, 94, 0.1)' : 'rgba(245, 158, 11, 0.1)'}`
+                }}
+            >
+                {/* Background Gradients */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-b from-blue-600/10 to-transparent rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-t from-purple-600/10 to-transparent rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+                <div className="relative z-10 flex flex-col md:flex-row h-full max-h-[90vh]">
+
+                    {/* LEFT PANEL: ASSET IDENTITY & ACTIONS */}
+                    <div className="w-full md:w-1/3 p-8 border-b md:border-b-0 md:border-r border-white/5 flex flex-col justify-between bg-white/[0.02]">
+                        <div className="space-y-8">
+                            {/* Header */}
+                            <div className="flex items-center gap-4">
+                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-4xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 shadow-lg`}>
+                                    {asset.icon}
+                                </div>
+                                <div>
+                                    <h2 className="text-3xl font-black text-white tracking-tight">{asset.symbol}</h2>
+                                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">{asset.name}</p>
+                                </div>
                             </div>
+
+                            {/* Price Hero */}
+                            <div className="space-y-2">
+                                <div className="text-5xl font-black text-white tracking-tighter">
+                                    {asset.price.toLocaleString('fr-FR', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })}
+                                </div>
+                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${isPositive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                    <span className="text-lg font-bold">{isPositive ? '↗' : '↘'}</span>
+                                    <span className="text-sm font-bold tracking-wide">{Math.abs(asset.change).toFixed(2)}% (24h)</span>
+                                </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <button
+                                onClick={handleRunAnalysis}
+                                disabled={isBusy}
+                                className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all duration-300 group ${isBusy ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-1'}`}
+                            >
+                                {isBusy ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Analyse en cours...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-lg group-hover:rotate-180 transition-transform duration-500">✨</span>
+                                        <span>{recommendation ? 'Actualiser l\'IA' : 'Lancer Omni-Intelligence'}</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Footer Info */}
+                        <div className="mt-8 pt-8 border-t border-white/5">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold text-center">
+                                Données de marché en temps réel<br />
+                                Propulsé par Google Gemini 3
+                            </p>
                         </div>
                     </div>
+
+
+                    {/* RIGHT PANEL: INTELLIGENCE & METRICS */}
+                    <div className="w-full md:w-2/3 p-8 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+
+                        {/* 1. THE VERDICT CARD */}
+                        <div className={`relative overflow-hidden rounded-3xl p-1 ${theme.bg} transition-all duration-500`}>
+                            <div className={`absolute inset-0 opacity-20 bg-gradient-to-r from-transparent via-${displayData.color}-500 to-transparent blur-xl`} />
+
+                            <div className="relative bg-[#0F1115] rounded-[1.3rem] p-6 border border-white/5 h-full flex flex-col justify-between group">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div>
+                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">
+                                            {displayData.isAi ? 'STRATÉGIE IA' : 'SIGNAL TECHNIQUE'}
+                                        </div>
+                                        <div className={`text-4xl md:text-5xl font-black tracking-tight ${theme.text} drop-shadow-sm`}>
+                                            {displayData.action}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">CONFIANCE</div>
+                                        <div className="text-3xl font-black text-white">{displayData.score}%</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <p className="text-slate-300 text-lg leading-relaxed font-medium">
+                                        "{displayData.logic}"
+                                    </p>
+
+                                    {/* AI Signals Badges */}
+                                    {recommendation?.signals && (
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                            {recommendation.signals.map((sig, idx) => (
+                                                <span key={idx} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-slate-300 uppercase tracking-wide">
+                                                    ⚡ {sig}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {!displayData.isAi && !isBusy && (
+                                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-[1.3rem]">
+                                        <button onClick={handleRunAnalysis} className="px-6 py-3 bg-white text-black font-black text-xs uppercase tracking-widest rounded-full transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                                            Activer l'Expertise IA
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 2. METRICS GRID */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* RSI CARD */}
+                            <div className="bg-white/[0.03] rounded-2xl p-5 border border-white/5">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-xs font-bold text-slate-500 uppercase">RSI (14)</span>
+                                    <span className={`text-xl font-black ${asset.rsi > 70 ? 'text-rose-400' : asset.rsi < 30 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                        {asset.rsi.toFixed(1)}
+                                    </span>
+                                </div>
+                                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full ${asset.rsi > 70 ? 'bg-rose-500' : asset.rsi < 30 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                                        style={{ width: `${asset.rsi}%` }}
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[8px] text-slate-600 mt-1 uppercase font-bold">
+                                    <span>Survente (30)</span>
+                                    <span>Surachat (70)</span>
+                                </div>
+                            </div>
+
+                            {/* MACD CARD */}
+                            <div className="bg-white/[0.03] rounded-2xl p-5 border border-white/5">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-xs font-bold text-slate-500 uppercase">MACD Trend</span>
+                                    <span className={`text-xl font-black ${asset.macd.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {asset.macd.startsWith('+') ? 'HAUSSIER' : 'BAISSIER'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-mono font-bold px-2 py-1 rounded ${asset.macd.startsWith('+') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                        {asset.macd}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500">Divergence</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* CLOSE BUTTON ABSOLUTE */}
                     <button
                         onClick={onClose}
-                        className="p-3 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white"
+                        className="absolute top-4 right-4 p-2 rounded-full bg-black/20 hover:bg-white/10 text-slate-400 hover:text-white transition-colors backdrop-blur-md"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
-                </div>
 
-                {/* Content Section */}
-                <div className="p-8 pt-4 overflow-y-auto no-scrollbar space-y-8">
-
-                    {/* AI Signal Panel */}
-                    <div className={`p-6 rounded-3xl border ${currentAction.border} ${currentAction.bg} relative overflow-hidden group transition-all duration-500`}>
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <span className="text-6xl font-black tracking-tighter">AI</span>
-                        </div>
-
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Verdict Stratégique</span>
-                                    {!recommendation && <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">( Mode Technique )</span>}
-                                </div>
-                                {recommendation && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-black text-slate-400">CONFIANCE</span>
-                                        <span className="text-lg font-black text-blue-400">{recommendation.confidence}%</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4 mb-4">
-                                <div className="flex items-baseline gap-4">
-                                    <span className={`text-3xl sm:text-4xl font-black ${currentAction.text}`}>{currentAction.label}</span>
-                                    <span className="text-slate-500 text-sm font-medium whitespace-nowrap">{recommendation ? 'Suggéré par Gemini 3' : 'Calculé par OmniTrade'}</span>
-                                </div>
-
-                                <button
-                                    onClick={handleRunAnalysis}
-                                    disabled={isBusy}
-                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all ${isBusy ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20 hover:shadow-blue-600/40 transform hover:-translate-y-0.5'}`}
-                                >
-                                    {isBusy ? (
-                                        <>
-                                            <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-                                            Analyse...
-                                        </>
-                                    ) : (
-                                        <>
-                                            ✨ {recommendation ? 'Actualiser' : 'Expertise IA'}
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-
-                            <div className="bg-black/20 backdrop-blur-sm p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                                {isBusy && (
-                                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-[2px] z-20 flex items-center justify-center p-6 text-center">
-                                        <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-300">
-                                            <div className="w-8 h-8 relative">
-                                                <span className="absolute inset-0 rounded-full border-4 border-blue-500/20"></span>
-                                                <span className="absolute inset-0 rounded-full border-4 border-t-blue-500 animate-spin"></span>
-                                            </div>
-                                            <div>
-                                                <p className="text-blue-400 font-black text-xs uppercase tracking-widest leading-relaxed">Interrogation de Gemini Pro...</p>
-                                                <p className="text-slate-500 text-[10px] uppercase tracking-wide">Analyse des rapports & indicateurs</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                <p className="text-slate-300 leading-relaxed italic text-lg text-center relative z-10">
-                                    "{recommendation?.justification || techVerdict.logic}"
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Technical Deep Dive */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-6">
-                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                Indicateurs Techniques (Hard Data)
-                            </h4>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center bg-slate-800/30 p-4 rounded-2xl border border-white/5">
-                                    <span className="text-xs font-bold text-slate-400">RSI (Relative Strength Index)</span>
-                                    <span className={`font-mono font-black ${asset.rsi > 70 ? 'text-rose-400' : asset.rsi < 30 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                                        {asset.rsi.toFixed(2)}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center bg-slate-800/30 p-4 rounded-2xl border border-white/5">
-                                    <span className="text-xs font-bold text-slate-400">MACD Trend Line</span>
-                                    <span className={`font-mono font-black ${asset.macd.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                        {asset.macd}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center bg-slate-800/30 p-4 rounded-2xl border border-white/5">
-                                    <span className="text-xs font-bold text-slate-400">Prix Actuel</span>
-                                    <span className="font-mono font-black text-white">
-                                        {asset.price.toLocaleString('fr-FR', { minimumFractionDigits: asset.price < 10 ? 4 : 2 })}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-6">
-                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                Signaux Détectés (Soft Data)
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {recommendation?.signals && recommendation.signals.length > 0 ? (
-                                    recommendation.signals.map((sig, idx) => (
-                                        <span key={idx} className="px-4 py-2 bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] font-black rounded-xl uppercase tracking-wider">
-                                            ⚡ {sig}
-                                        </span>
-                                    ))
-                                ) : (
-                                    <div className="w-full text-center py-6 bg-slate-800/20 rounded-2xl border border-dashed border-slate-700 flex flex-col items-center justify-center gap-2">
-                                        <span className="text-[10px] font-black text-slate-600 uppercase">Aucun signal spécifique</span>
-                                        <span className="text-[8px] text-slate-700">Lancer une analyse IA pour détecter des signaux</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-                                <p className="text-[10px] text-slate-500 leading-relaxed uppercase font-bold text-center italic">
-                                    {recommendation
-                                        ? `L'intelligence collective FinTwit montre une convergence de ${recommendation.confidence}% sur cet actif.`
-                                        : "Données de sentiment social en attente d'analyse IA."}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="p-8 border-t border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                    <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black max-w-xs">
-                        Analyse effectuée en temps réel via le moteur hybride OmniTrade Alpha
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all font-black text-xs uppercase tracking-widest"
-                    >
-                        Fermer
-                    </button>
                 </div>
             </div>
         </div>
