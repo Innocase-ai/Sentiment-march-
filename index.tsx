@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import * as Sentry from "@sentry/react";
-import './index.css';
 
 console.log("Starting application...");
 
