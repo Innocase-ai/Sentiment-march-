@@ -43,7 +43,7 @@ export default async (req: Request) => {
         if (targetAsset) {
             console.log(`Analyzing target: ${targetAsset.name}`);
             const response = await client.models.generateContent({
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-3.0-flash",
                 contents: `
                 ROLE: Tu es un Comité d'Investissement Algorithmique de pointe. Tu dois simuler une discussion entre 4 experts avant de rendre un verdict unique sur l'actif : ${targetAsset.name} (${targetAsset.symbol}).
 
