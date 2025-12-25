@@ -84,7 +84,8 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
       Produis un JSON valide respectant strictement le schéma fourni.
       - "summary": Synthèse percutante (style Bloomberg). Mentionne explicitement si "Hard Data" valide "Soft Data". Max 40 mots.
       - "signals": 3 Signaux Critiques. Types: 'MACRO' (Tendance), 'CORRELATION' (Convergence Hard/Soft), 'VOLATILITY' (Divergence/Choc).
-      - "recommendations": Recommandations basées sur la LOGIQUE DE DÉCISION. Justification DOIT citer une source Hard (ex: "Quant Rating", "Zacks") ET le sentiment.`,
+      - "recommendations": Recommandations basées sur la LOGIQUE DE DÉCISION. Justification DOIT citer une source Hard (ex: "Quant Rating", "Zacks") ET le sentiment.
+      - "news": Liste de 3 à 5 articles pertinents trouvés via Google Search.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -118,9 +119,22 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
                 },
                 required: ['asset', 'action', 'confidence', 'justification', 'signals']
               }
+            },
+            news: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  uri: { type: Type.STRING },
+                  source: { type: Type.STRING },
+                  sentiment: { type: Type.STRING, enum: ['positive', 'negative', 'neutral'] }
+                },
+                required: ['title', 'uri', 'source', 'sentiment']
+              }
             }
           },
-          required: ['summary', 'signals', 'recommendations']
+          required: ['summary', 'signals', 'recommendations', 'news']
         }
       }
     });
@@ -129,14 +143,20 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
     const rawText = response.text || '{}';
     const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    const intelligence = JSON.parse(cleanText) as UnifiedIntelligence;
+    let intelligence: UnifiedIntelligence;
+    try {
+      intelligence = JSON.parse(cleanText) as UnifiedIntelligence;
+    } catch (parseError) {
+      console.error("CRITICAL: Failed to parse Gemini response. Raw text:", cleanText);
+      throw new Error("JSON_PARSE_FAILED");
+    }
 
-    // Extract news links from grounding metadata to avoid an extra API call
-    const news: MarketNews[] = [];
+    // Extract news links from grounding metadata
+    const groundingNews: MarketNews[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     chunks.forEach((chunk: any) => {
       if (chunk.web) {
-        news.push({
+        groundingNews.push({
           title: chunk.web.title || "Flash Marché",
           uri: chunk.web.uri,
           source: new URL(chunk.web.uri).hostname.replace('www.', ''),
@@ -146,7 +166,15 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
       }
     });
 
-    return { ...intelligence, news: news.slice(0, 5) };
+    // Merge LLM JSON news with Grounding news (deduplicate by URI)
+    const combinedNews = [...(intelligence.news || []), ...groundingNews];
+    // Simple deduplication based on URI or Title
+    const uniqueNews = Array.from(new Map(combinedNews.map(item => [item.uri, item])).values());
+
+    // Add default time 'LIVE' if missing
+    const finalNews = uniqueNews.map(n => ({ ...n, time: n.time || "LIVE" }));
+
+    return { ...intelligence, news: finalNews.slice(0, 5) };
 
   } catch (error: any) {
     console.error("OmniIntelligence Error:", error);
