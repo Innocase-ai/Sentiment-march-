@@ -47,7 +47,7 @@ const AIAnalysisVisual: React.FC = () => {
                 {/* Text Content */}
                 <div className="text-center space-y-3 z-10 w-full">
                     <h3 className="text-2xl font-black text-white uppercase tracking-widest bg-gradient-to-r from-blue-300 via-white to-blue-300 bg-clip-text text-transparent">
-                        Gemini 3 Processing
+                        Analyse Gemini 3 en cours
                     </h3>
                     <div className="h-0.5 w-16 bg-gradient-to-r from-transparent via-blue-500 to-transparent mx-auto opacity-50"></div>
                     <p className="text-sm text-cyan-400 font-mono h-6 transition-all duration-300 flex items-center justify-center gap-2">

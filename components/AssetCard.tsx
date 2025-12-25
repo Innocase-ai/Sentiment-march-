@@ -5,7 +5,7 @@ import CandlestickChart from './CandlestickChart.tsx';
 interface AssetCardProps {
   asset: MarketAsset;
   recommendation?: Recommendation;
-  onClick?: () => void;
+  onClick: () => void;
 }
 
 type TimeFrame = '1J' | '1S' | '1M';
@@ -49,8 +49,8 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
 
   const sentiment = getTechnicalSentiment();
   const style = {
-    bullish: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: recommendation ? 'IA: ACHAT' : 'BULLISH' },
-    bearish: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20', label: recommendation ? 'IA: VENTE' : 'BEARISH' },
+    bullish: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: recommendation ? 'IA: ACHAT' : 'HAUSSIER' },
+    bearish: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20', label: recommendation ? 'IA: VENTE' : 'BAISSIER' },
     neutral: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/20', label: 'NEUTRE' }
   }[sentiment];
 
@@ -86,7 +86,10 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
   }, [asset.price]);
 
   return (
-    <div className="bg-[#1a2332] border border-[#334155] rounded-2xl p-4 transition-all duration-500 hover:border-blue-500/50 hover:bg-[#1e293b] group relative overflow-hidden shadow-xl flex flex-col h-full">
+    <div
+      onClick={onClick}
+      className="bg-[#1a2332] border border-[#334155] rounded-2xl p-4 transition-all duration-500 hover:border-blue-500/50 hover:bg-[#1e293b] group relative overflow-hidden shadow-xl flex flex-col h-full cursor-pointer"
+    >
       <div className={`absolute inset-0 transition-opacity duration-1000 pointer-events-none ${flash === 'up' ? 'bg-emerald-500/5 opacity-100' : flash === 'down' ? 'bg-rose-500/5 opacity-100' : 'opacity-0'}`} />
 
       {isInverseCramerActive && (
@@ -106,15 +109,15 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
             <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">{asset.symbol}</span>
           </div>
         </div>
-        
+
         <div className="flex flex-col items-end gap-2">
-           <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border} tracking-widest transition-all group-hover:scale-105 shadow-sm`}>
-              {style.label}
-           </span>
-           <div className="text-[8px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">{marketPhase}</div>
+          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border} tracking-widest transition-all group-hover:scale-105 shadow-sm`}>
+            {style.label}
+          </span>
+          <div className="text-[8px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">{marketPhase}</div>
         </div>
       </div>
-      
+
       <div className="flex justify-between items-end mb-3">
         <div>
           <div className={`text-2xl font-black font-mono tracking-tighter transition-colors duration-300 ${flash === 'up' ? 'text-emerald-400' : flash === 'down' ? 'text-rose-400' : 'text-slate-100'}`}>
@@ -138,7 +141,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Signaux de Marché IA</span>
-          <span className="text-[8px] font-bold text-blue-500/60 uppercase">Real-time Alpha</span>
+          <span className="text-[8px] font-bold text-blue-500/60 uppercase">Alpha en temps réel</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {recommendation?.signals && recommendation.signals.length > 0 ? (
@@ -149,8 +152,8 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
             ))
           ) : (
             <>
-              <span className="bg-slate-800 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase opacity-50">Trend Check</span>
-              <span className="bg-slate-800 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase opacity-50">Volume Scan</span>
+              <span className="bg-slate-800 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase opacity-50">Analyse de Tendance</span>
+              <span className="bg-slate-800 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase opacity-50">Scan de Volume</span>
             </>
           )}
         </div>
@@ -178,11 +181,11 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
           </div>
         </div>
       </div>
-      
+
       {recommendation && (
         <div className="mt-3 p-2 bg-blue-500/5 rounded-lg border border-blue-500/10 group-hover:bg-blue-500/10 transition-colors">
           <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-             <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span> Social Context IA
+            <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span> Contexte Social IA
           </div>
           <p className="text-[9px] text-slate-400 leading-tight italic line-clamp-2">"{recommendation.justification}"</p>
         </div>

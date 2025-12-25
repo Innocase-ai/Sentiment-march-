@@ -8,6 +8,7 @@ import NewsCard from './components/NewsCard.tsx';
 import { getOmniIntelligence, generateNewsImage, MarketNews } from './geminiService.ts';
 import AIAnalysisVisual from './components/AIAnalysisVisual.tsx';
 import { AboutModal } from './components/AboutModal';
+import DeepDiveModal from './components/DeepDiveModal.tsx';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MarketCategory>('indices');
@@ -19,6 +20,7 @@ const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isQuotaReached, setIsQuotaReached] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<MarketAsset | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -124,6 +126,13 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen font-sans bg-[#0f172a] text-slate-100 selection:bg-blue-500/30">
       {showAboutModal && <AboutModal onClose={() => setShowAboutModal(false)} />}
+      {selectedAsset && (
+        <DeepDiveModal
+          asset={selectedAsset}
+          recommendation={getAssetRecommendation(selectedAsset.name, selectedAsset.symbol)}
+          onClose={() => setSelectedAsset(null)}
+        />
+      )}
       {isAnalyzing && <AIAnalysisVisual />}
       <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3">
@@ -134,7 +143,7 @@ const App: React.FC = () => {
             <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent uppercase">OmniTrade Pulse</h1>
             <div className="text-[10px] text-blue-400 font-bold tracking-widest uppercase flex items-center gap-2">
               <span className={`w-1 h-1 rounded-full ${isQuotaReached ? 'bg-orange-500' : 'bg-blue-500 animate-ping'}`}></span>
-              {isQuotaReached ? 'Mode Économie Quota' : 'Alpha Engine Active'} • Gemini 3 Pro
+              {isQuotaReached ? 'Mode Économie de Quota' : 'Moteur Alpha Actif'} • Gemini 3 Pro
             </div>
           </div>
         </div>
@@ -200,14 +209,35 @@ const App: React.FC = () => {
         </section>
 
         <nav className="flex gap-1 overflow-x-auto no-scrollbar bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/50 shadow-inner">
-          {(['indices', 'forex', 'crypto', 'sectors', 'commodities', 'bonds'] as MarketCategory[]).map(cat => (
-            <button key={cat} onClick={() => setActiveTab(cat)} className={`flex-1 px-4 py-3 rounded-xl text-xs sm:text-sm font-black transition-all tracking-tight ${activeTab === cat ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800/50'}`}>{cat.toUpperCase()}</button>
-          ))}
+          {(['indices', 'forex', 'crypto', 'sectors', 'commodities', 'bonds'] as MarketCategory[]).map(cat => {
+            const labels: Record<string, string> = {
+              indices: 'INDICES',
+              forex: 'FOREX',
+              crypto: 'CRYPTO',
+              sectors: 'SECTEURS',
+              commodities: 'MATIÈRES PREMIÈRES',
+              bonds: 'OBLIGATIONS'
+            };
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveTab(cat)}
+                className={`flex-1 px-4 py-3 rounded-xl text-xs sm:text-sm font-black transition-all tracking-tight ${activeTab === cat ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800/50'}`}
+              >
+                {labels[cat]}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {markets[activeTab].map(asset => (
-            <AssetCard key={asset.id} asset={asset} recommendation={getAssetRecommendation(asset.name, asset.symbol)} />
+            <AssetCard
+              key={asset.id}
+              asset={asset}
+              recommendation={getAssetRecommendation(asset.name, asset.symbol)}
+              onClick={() => setSelectedAsset(asset)}
+            />
           ))}
         </div>
 
@@ -266,9 +296,9 @@ const App: React.FC = () => {
           <div className="text-right flex flex-col justify-end space-y-4">
             <div className="flex justify-end items-center gap-4">
               <div className="flex flex-col items-end">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Intelligence Status</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Statut d'Intelligence Globale</span>
                 <span className={`text-[10px] font-bold underline uppercase ${isQuotaReached ? 'text-orange-400' : 'text-blue-400'}`}>
-                  {isQuotaReached ? 'Quota Limité (Search Off)' : 'Optimisé (1 call/15min)'}
+                  {isQuotaReached ? 'Quota Limité (Search Désactivé)' : 'Optimisé (1 call/15min)'}
                 </span>
               </div>
               <div className="w-14 h-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl shadow-2xl">⚡</div>
