@@ -49,7 +49,7 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
 
     return {
       recommendations: [],
-      summary: "Erreur de connexion au service d'intelligence (Backend).",
+      summary: `Erreur: ${error.message || "Service indisponible"}`,
       news: [],
       signals: [],
       quotaReached: false
