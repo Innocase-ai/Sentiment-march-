@@ -117,10 +117,11 @@ export default async (req: Request) => {
 
                 --- ÉTAPE 4 : LE GÉRANT DE PORTEFEUILLE (DECISION MAKER) ---
                 Objectif : Synthèse et Verdict.
-                Action : Pèse les arguments des 3 experts précédents.
-                - Si Technique Bullish MAIS Macro Bearish => HOLD/NEUTRE.
-                - Si Technique Bullish ET Consensus Bullish => BUY/ACHAT (Confiance élevée).
-                - Si Technique Bearish ET News Négatives => SELL/VENTE.
+                ACTION: Pèse les arguments avec nuances.
+                - Si Technique Bullish ET Consensus Bullish => Achat fort (Confiance 85-98%).
+                - Si Technique Bullish MAIS Macro Bearish => Hold/Neutre (Confiance 40-60%).
+                - Si Signaux contradictoires forts => Confiance faible (<50%).
+                - NE JAMAIS donner 75% par défaut. Calcule un score précis (ex: 72, 88, 93).
 
                 OUTPUT FINAL (JSON STRICT):
                 {
