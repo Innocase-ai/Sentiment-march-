@@ -47,6 +47,17 @@ export async function getOmniIntelligence(marketData: MarketAsset[]): Promise<Un
     }
 
     const intelligence = await response.json();
+
+    // Validate/Fix signals structure before returning
+    if (intelligence.signals && Array.isArray(intelligence.signals)) {
+      intelligence.signals = intelligence.signals.map((s: any) => ({
+        type: s.type || 'MACRO',
+        title: s.title || 'Signal Inconnu',
+        description: s.description || 'Pas de description disponible.',
+        impact: s.impact || 'medium'
+      }));
+    }
+
     return intelligence;
 
   } catch (error: any) {

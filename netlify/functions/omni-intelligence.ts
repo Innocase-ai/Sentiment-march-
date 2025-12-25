@@ -168,7 +168,7 @@ export default async (req: Request) => {
               
               OUTPUT ATTENDU (JSON STRICT):
               - "summary": Max 40 mots.
-              - "signals": 3 Signaux Critiques.
+              - "signals": Liste de 3 objets { "type": "MACRO"|"CORRELATION"|"VOLATILITY", "title": "Titre majuscule", "description": "Court", "impact": "high"|"medium"|"low" }.
               - "recommendations": Liste avec justifications.
               - "news": 3-5 articles pertinents.
               `,
