@@ -116,11 +116,13 @@ const App: React.FC = () => {
     return { bullish: finalBullish, neutral: 0, bearish: finalBearish };
   }, [markets, liveNews]);
 
-  const getAssetRecommendation = (assetName: string, assetSymbol: string) => {
-    return recommendations.find(r =>
-      r.asset.toLowerCase() === assetName.toLowerCase() ||
-      r.asset.toLowerCase() === assetSymbol.toLowerCase()
-    );
+  const getAssetRecommendation = (asset: MarketAsset) => {
+    return recommendations.find(r => {
+      const recAsset = r.asset.toLowerCase().trim();
+      return recAsset === asset.symbol.toLowerCase().trim() ||
+        recAsset === asset.name.toLowerCase().trim() ||
+        recAsset === asset.id.toLowerCase().trim();
+    });
   };
 
   return (
@@ -129,7 +131,8 @@ const App: React.FC = () => {
       {selectedAsset && (
         <DeepDiveModal
           asset={selectedAsset}
-          recommendation={getAssetRecommendation(selectedAsset.name, selectedAsset.symbol)}
+          recommendation={getAssetRecommendation(selectedAsset)}
+          isAnalyzing={isAnalyzing}
           onClose={() => setSelectedAsset(null)}
         />
       )}
@@ -235,7 +238,7 @@ const App: React.FC = () => {
             <AssetCard
               key={asset.id}
               asset={asset}
-              recommendation={getAssetRecommendation(asset.name, asset.symbol)}
+              recommendation={getAssetRecommendation(asset)}
               onClick={() => setSelectedAsset(asset)}
             />
           ))}

@@ -72,7 +72,8 @@ export default async (req: Request) => {
       Produis un JSON valide respectant strictement le schéma fourni.
       - "summary": Synthèse percutante (style Bloomberg). Mentionne explicitement si "Hard Data" valide "Soft Data". Max 40 mots.
       - "signals": 3 Signaux Critiques. Types: 'MACRO' (Tendance), 'CORRELATION' (Convergence Hard/Soft), 'VOLATILITY' (Divergence/Choc).
-      - "recommendations": Recommandations basées sur la LOGIQUE DE DÉCISION. Justification DOIT citer une source Hard (ex: "Quant Rating", "Zacks") ET le sentiment.
+      - "recommendations": Recommandations basées sur la LOGIQUE DE DÉCISION. Justification DOIT citer une source Hard (ex: "Quant Rating", "Zacks") ET le sentiment. 
+        IMPORTANT: Pour le champ "asset", utilise EXCLUSIVEMENT le 'symbol' (ex: "DAX", "SPX") fourni dans les DONNÉES TECHNIQUES LOCALES pour garantir le mapping.
       - "news": Liste de 3 à 5 articles pertinents trouvés via Google Search.`,
             config: {
                 tools: [{ googleSearch: {} }],

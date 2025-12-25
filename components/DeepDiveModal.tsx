@@ -4,10 +4,11 @@ import { MarketAsset, Recommendation } from '../types.ts';
 interface DeepDiveModalProps {
     asset: MarketAsset;
     recommendation?: Recommendation;
+    isAnalyzing?: boolean;
     onClose: () => void;
 }
 
-const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, onClose }) => {
+const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, isAnalyzing, onClose }) => {
     const isPositive = asset.change >= 0;
 
     const actionStyles = {
@@ -74,8 +75,15 @@ const DeepDiveModal: React.FC<DeepDiveModalProps> = ({ asset, recommendation, on
                             </div>
 
                             <div className="bg-black/20 backdrop-blur-sm p-5 rounded-2xl border border-white/5">
-                                <p className="text-slate-300 leading-relaxed italic text-lg">
-                                    "{recommendation?.justification || "Analyse approfondie en cours. L'IA n'a pas encore émis de recommandation spécifique pour cet intervalle."}"
+                                <p className="text-slate-300 leading-relaxed italic text-lg text-center">
+                                    {isAnalyzing ? (
+                                        <span className="flex items-center justify-center gap-3 py-2">
+                                            <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span>
+                                            Mise à jour de l'analyse IA en cours...
+                                        </span>
+                                    ) : (
+                                        `"${recommendation?.justification || "Analyse approfondie en cours. L'IA n'a pas encore émis de recommandation spécifique pour cet actif."}"`
+                                    )}
                                 </p>
                             </div>
                         </div>
