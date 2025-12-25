@@ -18,7 +18,7 @@ const AssetCard: React.FC<AssetCardProps> = ({ asset, recommendation, onClick })
   const prevPriceRef = useRef(asset.price);
 
   const isInverseCramerActive = useMemo(() => {
-    return recommendation?.justification.toLowerCase().includes('cramer') || (asset.rsi > 75 && asset.change > 2);
+    return recommendation?.justification?.toLowerCase().includes('cramer') || (asset.rsi > 75 && asset.change > 2);
   }, [recommendation, asset]);
 
   const trendStrength = useMemo(() => {

@@ -118,10 +118,11 @@ const App: React.FC = () => {
 
   const getAssetRecommendation = (asset: MarketAsset) => {
     return recommendations.find(r => {
-      const recAsset = r.asset.toLowerCase().trim();
-      return recAsset === asset.symbol.toLowerCase().trim() ||
-        recAsset === asset.name.toLowerCase().trim() ||
-        recAsset === asset.id.toLowerCase().trim();
+      const recAsset = r.asset?.toLowerCase().trim();
+      if (!recAsset) return false;
+      return recAsset === asset.symbol?.toLowerCase().trim() ||
+        recAsset === asset.name?.toLowerCase().trim() ||
+        recAsset === asset.id?.toLowerCase().trim();
     });
   };
 
